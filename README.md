@@ -178,7 +178,7 @@ Publishing a build scan to scans.gradle.com requires accepting the Gradle Terms 
 Gradle Terms of Service accepted.
 
 Publishing build scan...
-https://gradle.com/s/[random characters]
+https://gradle.com/s/uij5vmjih6ok6
 ```
 
 ## Sources
