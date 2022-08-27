@@ -602,3 +602,4 @@ String errorMsg = 'Failed, because reasons'
 
 - "Building Java Applications Sample." _Gradle.org_, 2021, [docs.gradle.org/current/samples/sample_building_java_applications.html](https://docs.gradle.org/current/samples/sample_building_java_applications.html). Accessed 18 August 2022.
 - "Building Java Applications with Libraries Sample." _Gradle.org_, 2021, [docs.gradle.org/current/samples/sample_building_java_applications_multi_project.html](https://docs.gradle.org/current/samples/sample_building_java_applications_multi_project.html). Accessed 24 August 2022.
+- "A Groovy Build Script Primer." _Gradle.org_, 2021, [docs.gradle.org/current/userguide/groovy_build_script_primer.html](https://docs.gradle.org/current/userguide/groovy_build_script_primer.html). Accessed 27 August 2022.
