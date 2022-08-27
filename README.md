@@ -1,5 +1,32 @@
 # Getting started with Gradle (with Java)
 
+<!-- TOC -->
+* [Getting started with Gradle (with Java)](#getting-started-with-gradle--with-java-)
+  * [Install Gradle](#install-gradle)
+  * [Building Java Applications](#building-java-applications)
+    * [Create a project folder](#create-a-project-folder)
+    * [Run the init task](#run-the-init-task)
+    * [Review the project files](#review-the-project-files)
+    * [Run the application](#run-the-application)
+    * [Bundle the application](#bundle-the-application)
+    * [Publish a Build Scan](#publish-a-build-scan)
+  * [Building Java Applications with Libraries](#building-java-applications-with-libraries)
+    * [Create a project folder](#create-a-project-folder)
+    * [Run the init task](#run-the-init-task)
+    * [Review the project files](#review-the-project-files)
+    * [Run the tests](#run-the-tests)
+  * [Groovy Build Script Primer](#groovy-build-script-primer)
+    * [The `Project` object](#the-project-object)
+    * [Properties](#properties)
+      * [Properties in the API documentation](#properties-in-the-api-documentation)
+    * [Methods](#methods)
+    * [Blocks](#blocks)
+      * [Block method signatures](#block-method-signatures)
+      * [Delegation](#delegation)
+    * [Local variables](#local-variables)
+  * [Sources](#sources)
+<!-- TOC -->
+
 ## Install Gradle
 
 - See <https://docs.gradle.org/current/userguide/installation.html>
@@ -364,6 +391,212 @@ $ ./gradlew :app:check
 BUILD SUCCESSFUL in 481ms
 16 actionable tasks: 16 up-to-date
 ```
+
+## Groovy Build Script Primer
+
+- Ideally, a Groovy build script looks mostly like configuration
+  - setting some properties of the project, configuring dependencies, declaring tasks, etc.
+  - based on Groovy language constructs
+
+### The `Project` object
+
+- As Groovy is an object-oriented language based on Java, its properties and methods apply to objects
+- In some cases, the object is implicit
+  - particularly at the top level of a build script, i.e. not nested inside a `{}` block
+- Every Groovy build script is backed by an implicit instance of [`org.gradle.api.Project`](https://docs.gradle.org/current/dsl/org.gradle.api.Project.html)
+  - if you see an unqualified element, check the `Project` API documentation to see if that's where it's coming from
+- Both `version` and `configurations {}` below are part of `Project`
+
+```groovy
+// Unqualified property
+version = '1.0.0.GA'
+
+// Unqualified block
+configurations {
+    ...
+}
+```
+
+### Properties
+
+```groovy
+<obj>.<name>                // Get a property value
+<obj>.<name> = <value>      // Set a property to a new value
+"$<name>"                   // Embed a property value in a string
+"${<obj>.<name>}"           // Same as previous (embedded value)
+```
+
+- Examples
+
+```groovy
+version = '1.0.1'
+myCopyTask.description = 'Copies some files'
+
+file("$buildDir/classes")
+println "Destination: ${myCopyTask.destinationDir}"
+```
+
+- If the name is unqualified, then it may be one of the following:
+  - a task instance with that name
+  - a property on `Project`
+  - an extra property defined elsewhere in the project
+  - a property of an implicit object within a block
+  - a local variable defined earlier in the build script
+- Note that plugins can add their own properties to the `Project` object
+  - the [API documentation](https://docs.gradle.org/current/dsl/org.gradle.api.Project.html#N14E9A) lists all the properties added by core plugins
+  - if you're struggling to find where a property comes from, check the documentation for the plugins that the build uses
+- When referencing a project property in your build script that is added by a non-core plugin, consider prefixing it with `project.`
+  - it's clear then that the property belongs to the `project` object
+
+#### Properties in the API documentation
+
+- The [Groovy DSL reference](https://docs.gradle.org/current/dsl/) shows properties as they are used in your build scripts, but the Javadocs only display methods
+  - properties are implemented as methods behind the scenes
+  - a property can be read if there is a method named `get<PropertyName>` with zero arguments that returns the same type as the property
+  - a property can be modified if there is a method named `set<PropertyName>` with one argument that has the same type as the property and a return type of `void`
+- Property names usually start with a lower-case letter, but that letter is upper case in the method names
+  - the getter method `getProjectVersion()` corresponds to the property `projectVersion`
+  - this convention does not apply when the name begins with at least two upper-case letters, in which case there is not change in case
+    - `getRAM()` corresponds to the property `RAM`
+- Examples
+
+```groovy
+project.getVersion()
+project.version
+
+project.setVersion('1.0.1')
+project.version = '1.0.1'
+```
+
+### Methods
+
+```groovy
+<obj>.<name>()              // Method call with no arguments
+<obj>.<name>(<arg>, <arg>)  // Method call with multiple arguments
+<obj>.<name> <arg>, <arg>   // Method call with multiple args (no parentheses)
+```
+
+- Examples
+
+```groovy
+myCopyTask.include '**/*.xml', '**/*.properties'
+
+ext.resourceSpec = copySpec()   // `copySpec()` comes from `Project`
+
+file('src/main/java')
+println 'Hello, World!'
+```
+
+- A method represents some behavior of an object, although Gradle often uses methods to configure the state of objects as well
+- Methods are identifiable by their arguments or empty parentheses
+  - parentheses are sometimes required, such as when a method has zero arguments
+  - you may find it simplest to always use parentheses
+- Gradle has a convention whereby if a method has the same name as a collection-based property, then the method appends its values to that collection
+
+### Blocks
+
+- Blocks are also methods, just with specific types for the last argument
+
+```groovy
+<obj>.<name> {
+    ...
+}
+
+<obj>.<name>(<arg>, <arg>) {
+    ...
+}
+```
+
+- Examples
+
+```groovy
+plugins {
+    id 'java-library'
+}
+
+configurations {
+    assets
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+    }
+}
+
+dependencies {
+    implementation project(':util')
+}
+```
+
+- Blocks are a mechanism for configuring multiple aspects of a build element in one go
+- They also provide a way to nest configuration, leading to a form of structured data
+- 2 important aspects:
+  - implemented as methods with specific signatures
+  - can change the target ("delegate") of unqualified methods and properties
+
+#### Block method signatures
+
+- You can identify a method as a block's implementation by its signature - its argument types
+  - if a method corresponds to a block:
+    - it must have at least one argument 
+    - the last argument must be of type `groovy.lang.Closure` or `org.gradle.api.Action`
+- E.g., [`Project.copy(Action)`](https://docs.gradle.org/current/dsl/org.gradle.api.Project.html#org.gradle.api.Project:copy(org.gradle.api.Action)):
+  - `WorkResult copy(Action<? super CopySpec> action)`
+
+```groovy
+copy {
+    into "$buildDir/tmp"
+    from 'custom-resources'
+}
+```
+
+#### Delegation
+
+- The section on [properties](#properties) lists where unqualified properties might be found
+  - the `Project` object
+  - for those unqualified properties and methods inside a block: the block's delegate object
+- In the above example,
+  - [`copy()`](https://docs.gradle.org/current/dsl/org.gradle.api.Project.html#org.gradle.api.Project:copy(org.gradle.api.Action)) and [`buildDir`](https://docs.gradle.org/current/dsl/org.gradle.api.Project.html#N14E9A) are from the `Project` object
+  - `into()` and `from()` are resolved against the delegate of the `copy {}` block
+- 2 ways to determine the delegate type, depending on the signature of the block method:
+  - `Action` arguments
+    - look at the type's parameter: `Action<? super CopySpec> action`
+    - therefore, the delegate type: `CopySpec`
+  - `Closure` arguments
+    - the documentation will explicitly say what type is being configured or what type the delegate is (different terminology for the same thing)
+    - e.g., [`WorkResult copy(Closure closure)`](https://docs.gradle.org/current/dsl/org.gradle.api.Project.html#org.gradle.api.Project:copy(groovy.lang.Closure))
+      - its documentation: "The given closure is used to configure a `CopySpec`, which is then used to copy the files"
+- `into "$buildDir/tmp"`
+  - in `CopySpec`: [`CopySpec into(Object destPath)`](https://docs.gradle.org/current/javadoc/org/gradle/api/file/CopySpec.html#into-java.lang.Object-)
+- `from 'custom-resources'`
+  - in `CopySpec`: [`CopySpec from(Object... sourcePaths)`](https://docs.gradle.org/current/javadoc/org/gradle/api/file/CopySpec.html#from-java.lang.Object...-)
+- Both `into()` and `from()` have variants that take an `Action` as their last argument
+  - you can use block syntax with them
+- All new Gradle APIs declare an `Action` argument type rather than `Closure`
+  - easy to pick out the delegate type
+- Older APIs have an `Action` variant in addition to the old `Closure` one
+
+### Local variables
+
+```groovy
+def <name> = <value>        // Untyped variable
+<type> <name> = <value>     // Typed variable
+```
+
+- Examples
+
+```groovy
+def i = 1
+String errorMsg = 'Failed, because reasons'
+```
+
+- Local variables are a Groovy constructthat can be used to share values within a build script
+- Avoid using local variables in the root of the project, i.e. as pseudo project properties
+  - they cannot be read outside of the build script and Gradle has no knowledge of them
+- Within a narrower context such as configuring a task, local variables can occasionally be helpful
 
 ## Sources
 
